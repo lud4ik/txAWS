@@ -12,6 +12,7 @@ REGION_US = "US"
 REGION_EU = "EU"
 EC2_ENDPOINT_US = "https://us-east-1.ec2.amazonaws.com/"
 EC2_ENDPOINT_EU = "https://eu-west-1.ec2.amazonaws.com/"
+SQS_ENDPOINT_US = "https://sqs.us-east-1.amazonaws.com/"
 
 # These are the new EC2 variables.
 EC2_US_EAST = [
