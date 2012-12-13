@@ -19,21 +19,15 @@ class SSLClientContextFactory(ssl.ClientContextFactory):
 
 class BodyReceiver(protocol.Protocol):
 
-    def __init__(self, finished, response, responseFormat):
+    def __init__(self, finished, response):
         self.finished = finished
         self.data = StringIO()
         self.code = response.code
-        self.formatter = getattr(
-            self,
-            'format_%s' % responseFormat,
-            lambda x: x
-        )
 
     def dataReceived(self, data):
         self.data.write(data)
 
     def connectionLost(self, reason):
-        print self.code
         self.data.seek(0, 0)
         data = self.data.read()
         if self.code == 200:
@@ -56,7 +50,7 @@ class SQSConnection(object):
             pool=pool
         )
 
-    def call(self, url, method='GET', headers={}, responseFormat='xml'):
+    def call(self, url, method='GET', headers={}):
         headers = Headers({
             key: [value] for key, value in headers.items()
         })
@@ -66,7 +60,7 @@ class SQSConnection(object):
         def cbRequest(response):
             finished = defer.Deferred()
             response.deliverBody(
-                BodyReceiver(finished, response, responseFormat)
+                BodyReceiver(finished, response)
             )
             return finished
         d.addCallback(cbRequest)

@@ -1,4 +1,10 @@
+import base64
+from collections import namedtuple
+
 from txaws.util import XML
+
+
+Message = namedtuple('Message', 'id, md5, receipt, body')
 
 
 def empty_check(data):
@@ -28,7 +34,7 @@ def parse_send_message(data):
     element = XML(data).find('SendMessageResult')
     md5 = element.findtext('MD5OfMessageBody').strip()
     msg_id = element.findtext('MessageId').strip()
-    return md5, msg_id
+    return Message(msg_id, md5, None, None)
 
 
 def parse_change_message_visibility_batch(data):
@@ -54,8 +60,8 @@ def parse_receive_message(data):
     element = XML(data).find('ReceiveMessageResult')
     for i in element.getchildren():
         msg_id = i.findtext('MessageId').strip()
-        receipt_handle = i.findtext('ReceiptHandle').strip()
+        receipt = i.findtext('ReceiptHandle').strip()
         md5 = i.findtext('MD5OfBody').strip()
-        body = i.findtext('Body').strip()
-        result.append((msg_id, receipt_handle, md5, body))
+        body = base64.b64decode(i.findtext('Body'))
+        result.append(Message(msg_id, md5, receipt, body))
     return result

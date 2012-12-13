@@ -20,6 +20,15 @@ except ImportError:
 __all__ = ["hmac_sha1", "hmac_sha256", "iso8601time", "calculate_md5", "XML"]
 
 
+def get_utf8_value(value):
+    if not isinstance(value, str) and not isinstance(value, unicode):
+        value = str(value)
+    if isinstance(value, unicode):
+        return value.encode('utf-8')
+    else:
+        return value
+
+
 def calculate_md5(data):
     digest = md5(data).digest()
     return b64encode(digest)

@@ -158,10 +158,9 @@ class AWSServiceRegion(object):
         if creds:
             self.creds = creds
         return self.get_client(SQSClient,
+                               purge_cache=True,
                                creds=self.creds,
                                endpoint=self.sqs_endpoint,
-                               query_factory=None,
-                               owner_id=owner_id,
-                               queue=queue)
+                               query_factory=None)
 
 

@@ -2,6 +2,7 @@ import base64
 from urllib import quote
 from datetime import datetime
 
+from txaws.util import hmac_sha256
 from txaws.client.base import BaseClient
 from txaws.sqs.connection import SQSConnection
 from txaws.sqs.errors import RequestParamError
@@ -13,47 +14,48 @@ from txaws.sqs.parser import (empty_check,
                               parse_receive_message)
 
 
-def get_utf8_value(value):
-    if not isinstance(value, str) and not isinstance(value, unicode):
-        value = str(value)
-    if isinstance(value, unicode):
-        return value.encode('utf-8')
-    else:
-        return value
+class Signature(object):
 
+    VERSION = '2'
+    method = 'HmacSHA256'
 
-class Query(SQSConnection):
-
-    SignatureVersion = '2'
-    SignatureMethod = 'HmacSHA256'
-    APIVersion = '2012-11-05'
-    DATE_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
-
-    def __init__(self, creds, endpoint):
-        super(Query, self).__init__()
-        self.creds = creds
-        self.endpoint = endpoint
-
-    def sign(self, query):
-        text = (self.endpoint.method + "\n" +
-                self.endpoint.get_host().lower() + "\n" +
-                self.endpoint.path + "\n" +
+    @staticmethod
+    def sign(secret_key, endpoint, query):
+        text = (endpoint.method + "\n" +
+                endpoint.get_host().lower() + "\n" +
+                endpoint.path + "\n" +
                 query)
-        return self.creds.sign(text, hash_type="sha256")
+        return hmac_sha256(secret_key, text)
 
-    def get_query_string(self, params):
+    @classmethod
+    def get_query_string(cls, secret_key, endpoint, params):
         keys = sorted(params.keys())
         pairs = []
         for key in keys:
             val = get_utf8_value(params[key])
             pairs.append(quote(key, safe='') + '=' + quote(val, safe='-_~'))
         query = '&'.join(pairs)
+        sign = cls.sign(secret_key, endpoint, query)
+        query += '&{}={}'.format('Signature', sign)
         return query
+
+
+class Query(SQSConnection):
+
+    SIGNATURE_CLASS = Signature
+    APIVersion = '2012-11-05'
+    DATE_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
+
+
+    def __init__(self, creds, endpoint):
+        super(Query, self).__init__()
+        self.creds = creds
+        self.endpoint = endpoint
 
     def get_standard_headers(self):
         return {
-            'SignatureVersion': self.SignatureVersion,
-            'SignatureMethod': self.SignatureMethod,
+            'SignatureVersion': self.SIGNATURE_CLASS.VERSION,
+            'SignatureMethod': self.SIGNATURE_CLASS.method,
             'Version': self.APIVersion,
             'AWSAccessKeyId': self.creds.access_key,
         }
@@ -62,22 +64,22 @@ class Query(SQSConnection):
         params['Action'] = action
         params['Timestamp'] = datetime.utcnow().strftime(self.DATE_FORMAT)
         params.update(self.get_standard_headers())
-        query = self.get_query_string(params)
-        query += '&{}={}'.format('Signature', self.sign(query))
+        query = self.SIGNATURE_CLASS.get_query_string(self.creds.secret_key,
+                                                      self.endpoint, params)
         url = '{}?{}'.format(self.endpoint.get_uri(), query)
-        return self.call(url, responseFormat='xml')
+        return self.call(url)
 
 
 class SQSClient(BaseClient):
 
-    def __init__(self, creds=None, endpoint=None, query_factory=None,
-                 owner_id=None, queue=None):
+    def __init__(self, creds=None, endpoint=None, query_factory=None):
         query_factory = Query(creds, endpoint)
         super(SQSClient, self).__init__(creds, endpoint, query_factory)
-        if owner_id and queue:
-            self.queue = queue
-            self.owner_id = owner_id
-            self.endpoint.set_path('/{}/{}/'.format(owner_id, queue))
+
+    def set_queue(self, owner_id, queue):
+        self.owner_id = owner_id
+        self.queue = queue
+        self.endpoint.set_path('/{}/{}/'.format(owner_id, queue))
 
     def change_message_visibility(self, receipt_handle, timeout):
         params = {'ReceiptHandle': receipt_handle,
