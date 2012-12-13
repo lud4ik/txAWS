@@ -5,6 +5,8 @@ from twisted.internet import reactor, ssl, defer, protocol
 from twisted.web.client import Agent, HTTPConnectionPool
 from twisted.web.http_headers import Headers
 
+from txaws.util import XML
+
 
 class ApiError(Exception):
 
@@ -37,14 +39,13 @@ class BodyReceiver(protocol.Protocol):
         )
 
     def format_xml(self, data):
-        # make parse xml later
-        return data
+        response = XML(data)
+        return response
 
     def dataReceived(self, data):
         self.data.write(data)
 
     def connectionLost(self, reason):
-        print self.code
         self.data.seek(0, 0)
         data = self.data.read()
         try:

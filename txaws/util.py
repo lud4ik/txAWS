@@ -3,7 +3,6 @@
 New things in this module should be of relevance to more than one of Amazon's
 services.
 """
-
 from base64 import b64encode
 from hashlib import sha1, md5, sha256
 import hmac
