@@ -1,21 +1,12 @@
 # -*- coding: utf-8 -*-
 from cStringIO import StringIO
 
+from twisted.python import log
 from twisted.internet import reactor, ssl, defer, protocol
 from twisted.web.client import Agent, HTTPConnectionPool
 from twisted.web.http_headers import Headers
 
-from txaws.util import XML
-
-
-class ApiError(Exception):
-
-    def __init__(self, value, code=None):
-        self.value = value
-        self.code = code
-
-    def __str__(self):
-        return repr(self.value)
+from txaws.sqs.errors import ApiError, ResponseError
 
 
 class SSLClientContextFactory(ssl.ClientContextFactory):
@@ -38,24 +29,19 @@ class BodyReceiver(protocol.Protocol):
             lambda x: x
         )
 
-    def format_xml(self, data):
-        response = XML(data)
-        return response
-
     def dataReceived(self, data):
         self.data.write(data)
 
     def connectionLost(self, reason):
+        print self.code
         self.data.seek(0, 0)
         data = self.data.read()
-        try:
-            data = self.formatter(data)
-        except Exception as e:
-            error = ApiError(repr(e))
+        if self.code == 200:
+            self.finished.callback(data)
+        else:
+            error = ResponseError(data, self.code)
             log.err(error)
             self.finished.errback(error)
-        else:
-            self.finished.callback(data)
         self.data.close()
 
 

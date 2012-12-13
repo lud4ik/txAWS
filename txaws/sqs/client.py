@@ -5,6 +5,12 @@ from datetime import datetime
 from txaws.client.base import BaseClient
 from txaws.sqs.connection import SQSConnection
 from txaws.sqs.errors import RequestParamError
+from txaws.sqs.parser import (empty_check,
+                              parse_send_message,
+                              parse_send_message_batch,
+                              parse_change_message_visibility_batch,
+                              parse_delete_message_batch,
+                              parse_receive_message)
 
 
 def get_utf8_value(value):
@@ -77,7 +83,10 @@ class SQSClient(BaseClient):
         params = {'ReceiptHandle': receipt_handle,
                   'VisibilityTimeout': str(timeout)}
 
-        return self.query_factory.submit('ChangeMessageVisibility', **params)
+        body = self.query_factory.submit('ChangeMessageVisibility', **params)
+        body.addCallback(empty_check)
+
+        return body
 
     def change_message_visibility_batch(self, receipt_handles, timeout):
         """
@@ -97,12 +106,18 @@ class SQSClient(BaseClient):
             params['{}.{}.ReceiptHandle'.format(prefix, i)] = param[0]
             params['{}.{}.VisibilityTimeout'.format(prefix, i)] = str(param[1])
 
-        return self.query_factory.submit('ChangeMessageVisibilityBatch', **params)
+        body = self.query_factory.submit('ChangeMessageVisibilityBatch', **params)
+        body.addCallback(parse_change_message_visibility_batch)
+
+        return body
 
     def delete_message(self, receipt_handle):
         params = {'ReceiptHandle': receipt_handle}
 
-        return self.query_factory.submit('DeleteMessage', **params)
+        body = self.query_factory.submit('DeleteMessage', **params)
+        body.addCallback(empty_check)
+
+        return body
 
     def delete_message_batch(self, receipt_handles):
         if len(receipt_handles) > 10:
@@ -113,7 +128,10 @@ class SQSClient(BaseClient):
             params['{}.{}.Id'.format(prefix, i)] = str(i)
             params['{}.{}.ReceiptHandle'.format(prefix, i)] = receipt
 
-        return self.query_factory.submit('DeleteMessageBatch', **params)
+        body = self.query_factory.submit('DeleteMessageBatch', **params)
+        body.addCallback(parse_delete_message_batch)
+
+        return body
 
     def receive_message(self, attribute_name=None, max_number_of_messages=None,
                         visibility_timeout=None, wait_time_seconds=None):
@@ -127,14 +145,20 @@ class SQSClient(BaseClient):
         if wait_time_seconds:
             params['WaitTimeSeconds'] = wait_time_seconds
 
-        return self.query_factory.submit('ReceiveMessage', **params)
+        body = self.query_factory.submit('ReceiveMessage', **params)
+        body.addCallback(parse_receive_message)
+
+        return body
 
     def send_message(self, message, delay_seconds=None):
         params = {'MessageBody': base64.b64encode(message)}
         if delay_seconds:
             params['DelaySeconds'] = str(delay_seconds)
 
-        return self.query_factory.submit('SendMessage', **params)
+        body = self.query_factory.submit('SendMessage', **params)
+        body.addCallback(parse_send_message)
+
+        return body
 
     def send_message_batch(self, messages, delay_seconds=None):
         """
@@ -155,4 +179,7 @@ class SQSClient(BaseClient):
             if delay_seconds:
                 params['{}.{}.DelaySeconds'.format(prefix, i)] = str(delay_seconds[i - 1])
 
-        return self.query_factory.submit('SendMessageBatch', **params)
+        body = self.query_factory.submit('SendMessageBatch', **params)
+        body.addCallback(parse_send_message_batch)
+
+        return body
