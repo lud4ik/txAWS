@@ -129,7 +129,7 @@ class Queue(object):
         params = {}
         prefix = 'ChangeMessageVisibilityBatchRequestEntry'
         if isinstance(timeout, int):
-            timeout = [timeout for i in len(receipt_handles)]
+            timeout = [timeout for i in xrange(len(receipt_handles))]
         for i, param in enumerate(zip(receipt_handles, timeout), start=1):
             params['{}.{}.Id'.format(prefix, i)] = str(i)
             params['{}.{}.ReceiptHandle'.format(prefix, i)] = param[0]
@@ -199,7 +199,7 @@ class Queue(object):
             raise RequestParamError('More than 10 not allowed.')
         params = {}
         if isinstance(delay_seconds, int):
-            delay_seconds = [delay_seconds for i in len(receipt_handles)]
+            delay_seconds = [delay_seconds for i in xrange(len(messages))]
         prefix = 'SendMessageBatchRequestEntry'
 
         for i, msg in enumerate(messages, start=1):
