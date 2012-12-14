@@ -1,5 +1,5 @@
 import base64
-from urllib import quote
+from urllib import quote, quote_plus
 from datetime import datetime
 
 from txaws.util import hmac_sha256, get_utf8_value
@@ -38,7 +38,7 @@ class Signature(object):
         query = '&'.join(pairs)
         sign = cls.sign(secret_key, endpoint, query)
         query += '&{}={}'.format(quote('Signature', safe=''),
-                                 quote(sign, safe='-_~'))
+                                 quote_plus(sign))
         return query
 
 
