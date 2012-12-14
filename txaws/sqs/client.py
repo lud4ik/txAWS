@@ -122,7 +122,6 @@ class Queue(object):
         Share with SQSClient creds and agent with HTTPConnectionPool.
         TODO:
             - AddPermission;
-            - DeleteQueue;
             - GetQueueAttributes;
             - RemovePermission;
             - SetQueueAttributes.
@@ -169,6 +168,15 @@ class Queue(object):
         params = {'ReceiptHandle': receipt_handle}
 
         body = self.query_factory.submit('DeleteMessage', **params)
+        body.addCallback(empty_check)
+
+        return body
+
+    def delete_queue(self):
+        """
+            The response is successful even if the specified queue does not exist.
+        """
+        body = self.query_factory.submit('DeleteQueue')
         body.addCallback(empty_check)
 
         return body
