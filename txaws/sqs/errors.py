@@ -18,7 +18,7 @@ class ApiError(Exception):
 class ResponseError(ApiError):
 
     def __init__(self, value, code=None):
-        super(ResponseError, self).__init__()
+        super(ResponseError, self).__init__(value, code)
         self.set_response_values()
 
     def set_response_values(self):

@@ -2,8 +2,9 @@ import base64
 from urllib import quote
 from datetime import datetime
 
-from txaws.util import hmac_sha256
+from txaws.util import hmac_sha256, get_utf8_value
 from txaws.client.base import BaseClient
+from txaws.service import AWSServiceEndpoint
 from txaws.sqs.connection import SQSConnection
 from txaws.sqs.errors import RequestParamError
 from txaws.sqs.parser import (empty_check,
@@ -47,8 +48,8 @@ class Query(SQSConnection):
     DATE_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 
 
-    def __init__(self, creds, endpoint):
-        super(Query, self).__init__()
+    def __init__(self, creds, endpoint, agent=None):
+        super(Query, self).__init__(agent)
         self.creds = creds
         self.endpoint = endpoint
 
@@ -71,15 +72,40 @@ class Query(SQSConnection):
 
 
 class SQSClient(BaseClient):
+    """
+        TODO:
+            - CreateQueue;
+            - GetQueueUrl;
+            - ListQueues.
+    """
 
     def __init__(self, creds=None, endpoint=None, query_factory=None):
         query_factory = Query(creds, endpoint)
         super(SQSClient, self).__init__(creds, endpoint, query_factory)
 
-    def set_queue(self, owner_id, queue):
-        self.owner_id = owner_id
-        self.queue = queue
-        self.endpoint.set_path('/{}/{}/'.format(owner_id, queue))
+    def get_queue(self, owner_id, queue):
+        endpoint = AWSServiceEndpoint(uri=self.endpoint.get_uri())
+        endpoint.set_path('/{}/{}/'.format(owner_id, queue))
+        query_factory = Query(self.creds, endpoint, self.query_factory.agent)
+        return Queue(self.creds, endpoint, query_factory)
+
+
+class Queue(object):
+    """
+        Requests are made with path set to "/owner_id/queue_name/?...".
+        Share with SQSClient creds and agent with HTTPConnectionPool.
+        TODO:
+            - AddPermission;
+            - DeleteQueue;
+            - GetQueueAttributes;
+            - RemovePermission;
+            - SetQueueAttributes.
+    """
+
+    def __init__(self, creds, endpoint, query_factory):
+        self.creds = creds
+        self.endpoint = endpoint
+        self.query_factory = query_factory
 
     def change_message_visibility(self, receipt_handle, timeout):
         params = {'ReceiptHandle': receipt_handle,

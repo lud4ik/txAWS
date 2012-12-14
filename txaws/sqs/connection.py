@@ -41,14 +41,16 @@ class BodyReceiver(protocol.Protocol):
 
 class SQSConnection(object):
 
-    def __init__(self):
-        pool = HTTPConnectionPool(reactor)
-        contextFactory = SSLClientContextFactory()
-        self.agent = Agent(
-            reactor,
-            contextFactory=contextFactory,
-            pool=pool
-        )
+    def __init__(self, agent=None):
+        if agent is None:
+            pool = HTTPConnectionPool(reactor)
+            contextFactory = SSLClientContextFactory()
+            agent = Agent(
+                reactor,
+                contextFactory=contextFactory,
+                pool=pool
+            )
+        self.agent = agent
 
     def call(self, url, method='GET', headers={}):
         headers = Headers({
