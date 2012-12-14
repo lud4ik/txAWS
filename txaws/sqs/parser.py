@@ -65,3 +65,16 @@ def parse_receive_message(data):
         body = base64.b64decode(i.findtext('Body'))
         result.append(Message(msg_id, md5, receipt, body))
     return result
+
+
+def parse_get_queue_url(data):
+    element = XML(data).find('GetQueueUrlResult')
+    return element.findtext('QueueUrl').strip()
+
+
+def parse_list_queues(data):
+    result = []
+    element = XML(data).find('ListQueuesResult')
+    for tag in element.findall('QueueUrl'):
+        result.append(tag.text.strip())
+    return result

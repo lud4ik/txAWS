@@ -12,7 +12,9 @@ from txaws.sqs.parser import (empty_check,
                               parse_send_message_batch,
                               parse_change_message_visibility_batch,
                               parse_delete_message_batch,
-                              parse_receive_message)
+                              parse_receive_message,
+                              parse_get_queue_url,
+                              parse_list_queues)
 
 
 class Signature(object):
@@ -75,9 +77,7 @@ class Query(SQSConnection):
 class SQSClient(BaseClient):
     """
         TODO:
-            - CreateQueue;
-            - GetQueueUrl;
-            - ListQueues.
+            - CreateQueue.
     """
 
     def __init__(self, creds=None, endpoint=None, query_factory=None):
@@ -85,10 +85,35 @@ class SQSClient(BaseClient):
         super(SQSClient, self).__init__(creds, endpoint, query_factory)
 
     def get_queue(self, owner_id, queue):
+        """
+            If owner_id and queue name is known, there is no need to do
+            request for queue url. You should call this method to get queue
+            and make operations on it.
+        """
         endpoint = AWSServiceEndpoint(uri=self.endpoint.get_uri())
         endpoint.set_path('/{}/{}/'.format(owner_id, queue))
         query_factory = Query(self.creds, endpoint, self.query_factory.agent)
         return Queue(self.creds, endpoint, query_factory)
+
+    def get_queue_url(self, queue, owner=None):
+        params = {'QueueName': queue}
+        if owner:
+            params['QueueOwnerAWSAccountId'] = owner
+
+        body = self.query_factory.submit('GetQueueUrl', **params)
+        body.addCallback(parse_get_queue_url)
+
+        return body
+
+    def list_queues(self, prefix=None):
+        params = {}
+        if prefix:
+            params['QueueNamePrefix'] = prefix
+
+        body = self.query_factory.submit('ListQueues', **params)
+        body.addCallback(parse_list_queues)
+
+        return body
 
 
 class Queue(object):
