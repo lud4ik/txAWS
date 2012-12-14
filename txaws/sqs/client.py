@@ -37,7 +37,8 @@ class Signature(object):
             pairs.append(quote(key, safe='') + '=' + quote(val, safe='-_~'))
         query = '&'.join(pairs)
         sign = cls.sign(secret_key, endpoint, query)
-        query += '&{}={}'.format('Signature', sign)
+        query += '&{}={}'.format(quote('Signature', safe=''),
+                                 quote(sign, safe='-_~'))
         return query
 
 
