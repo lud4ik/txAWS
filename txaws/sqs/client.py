@@ -51,7 +51,6 @@ class Query(SQSConnection):
     APIVersion = '2012-11-05'
     DATE_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 
-
     def __init__(self, creds, endpoint, agent=None):
         super(Query, self).__init__(agent)
         self.creds = creds
