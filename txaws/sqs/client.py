@@ -301,6 +301,7 @@ class Queue(object):
             CreatedTimestamp — epoch time in seconds.
             LastModifiedTimestamp — time when the queue was last changed
                 (epoch time in seconds).
+            Policy — A valid form-url-encoded policy.
             MaximumMessageSize — from 1024 to 65536 bytes (1-64 KiB).
             MessageRetentionPeriod (seconds) — 60-1209600 (1 minute - 14 days).
             QueueArn — queue's Amazon resource name (ARN).
@@ -419,5 +420,31 @@ class Queue(object):
 
         body = self.query_factory.submit('SendMessageBatch', **params)
         body.addCallback(parse_send_message_batch)
+
+        return body
+
+    def set_queue_attributes(self, attr, value):
+        """
+            @param attr: required, C{str}.
+            @param value: required, type depends on attr
+                          (described in get_queue_attributes).
+            Sets one attribute of a queue per request.
+        """
+        valid = ['DelaySeconds',
+                 'MaximumMessageSize',
+                 'MessageRetentionPeriod',
+                 'Policy',
+                 'ReceiveMessageWaitTimeSeconds',
+                 'VisibilityTimeout',
+        ]
+        if attr not in valid:
+            raise RequestParamError('Unknown queue attribute.')
+        params = {
+            'Attribute.Name': attr,
+            'Attribute.Value': value
+        }
+
+        body = self.query_factory.submit('SetQueueAttributes', **params)
+        body.addCallback(empty_check)
 
         return body
