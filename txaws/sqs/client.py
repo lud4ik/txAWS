@@ -199,8 +199,7 @@ class Queue(object):
             - SendMessage;
             - SendMessageBatch.
         TODO:
-            - AddPermission;
-            - SetQueueAttributes.
+            - AddPermission.
         Description of mostly used params:
             - receipt_handle (ReceiptHandle) -  special parameter to change
                             state of a message, received with receive_message.
@@ -337,7 +336,7 @@ class Queue(object):
     def receive_message(self, attribute=None, max_number_of_messages=None,
                         timeout=None, wait_time_seconds=None):
         """
-            @param attribute: optional, C{str}, default C{None}.
+            @param attribute: optional, C{list} or C{str}, default C{None}.
                 Possible values:
                 All — returns all values.
                 SenderId — returns the AWS account number (or the IP address,
@@ -357,8 +356,11 @@ class Queue(object):
                             Long poll support.
         """
         params = {}
-        if attribute_name:
-            params['AttributeName'] = attribute
+        if isinstance(attribute, basestring):
+            params['AttributeName.1'] = attribute
+        elif isinstance(attribute, list):
+            for i, attr in enumerate(attribute, start=1):
+                params['AttributeName.{}'.format(i)] = attr
         if max_number_of_messages:
             params['MaxNumberOfMessages'] = max_number_of_messages
         if visibility_timeout:
