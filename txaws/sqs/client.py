@@ -89,6 +89,8 @@ class SQSClient(BaseClient):
 
     def get_queue(self, owner_id, queue):
         """
+            @param owner_id: required, C{str}.
+            @param queue: required, C{str}:
             If owner_id and queue name is known, there is no need to do
             request for queue url. You should call this method to get queue
             and make operations on it.
@@ -100,10 +102,21 @@ class SQSClient(BaseClient):
 
     def create_queue(self, name, attrs=None):
         """
-            Params:
-                name - name of a new queue;
-                attrs - dict of attributes and their values (all optional).
-
+            @param name: required, C{str}.
+            @param attrs: optional, C{dict}:
+                {'DelaySeconds': C{int} from 0 to 900, default - 0,
+                 'MaximumMessageSize': C{int} from 1024 bytes (1 KiB)
+                                       up to 65536 bytes (64 KiB),
+                                       default - 65536,
+                 'MessageRetentionPeriod': C{int} (seconds) from
+                                        60 (1 minute) to 1209600 (14 days),
+                                        default - 345600 (4 days),
+                 'Policy': valid form-url-encoded policy,
+                 'ReceiveMessageWaitTimeSeconds': C{int} from 0 to 20
+                                                  (seconds), default - 0,
+                 'VisibilityTimeout': C{int} from 0 to 43200 (12 hours),
+                                      default - 30,
+                }
             DelaySeconds - The time in seconds that the delivery of all messages
                            in the queue will be delayed.
             MaximumMessageSize - The limit of how many bytes a message can
@@ -116,20 +129,6 @@ class SQSClient(BaseClient):
                                 received from a queue will be invisible to other
                                 receiving components when they ask to receive
                                 messages.
-            Format of attrs:
-                    {'DelaySeconds': int from 0 to 900, default - 0,
-                     'MaximumMessageSize': int from 1024 bytes (1 KiB)
-                                           up to 65536 bytes (64 KiB),
-                                           default - 65536,
-                     'MessageRetentionPeriod': int (seconds) from
-                                            60 (1 minute) to 1209600 (14 days),
-                                            default - 345600 (4 days),
-                     'Policy': valid form-url-encoded policy,
-                     'ReceiveMessageWaitTimeSeconds': value (int from 0 to 20
-                                                      (seconds), default - 0.),
-                     'VisibilityTimeout': int from 0 to 43200 (12 hours),
-                                          default - 30,
-                    }
         """
         params = {'QueueName': name}
         if attrs:
@@ -156,12 +155,10 @@ class SQSClient(BaseClient):
 
     def get_queue_url(self, queue, owner_id=None):
         """
-            Params:
-                queue - name of the queue (required); maximum 80 characters;
-                        alphanumeric characters, hyphens (-),
-                        and underscores (_) are allowed;
-                owner_id - id of owner's AWS account
-                           (required if queue belongs to another AWS account).
+            @param queue: required, C{str} maximum 80 characters;
+                          alphanumeric characters, hyphens (-).
+            @param owner_id: required if queue belongs to another AWS account,
+                          C{str}, id of owner's AWS account.
         """
         params = {'QueueName': queue}
         if owner:
@@ -174,10 +171,9 @@ class SQSClient(BaseClient):
 
     def list_queues(self, prefix=None):
         """
-            Params:
-                - prefix (optional) - prefix for queue name.
-                  Maximum 80 characters; alphanumeric characters,
-                  hyphens (-), and underscores (_) are allowed
+            @param prefix: optional, C{str} maximum 80 characters;
+                           alphanumeric characters, hyphens (-),
+                           and underscores (_) are allowed.
         """
         params = {}
         if prefix:
@@ -207,6 +203,15 @@ class Queue(object):
             - GetQueueAttributes;
             - RemovePermission;
             - SetQueueAttributes.
+        Description of mostly used params:
+            - receipt_handle (ReceiptHandle) -  special parameter to change
+                            state of a message, received with receive_message.
+            - timeout (VisibilityTimeout) - the length of time, in seconds, that
+                            a message received from a queue will be invisible
+                            to other receiving components when they ask to
+                            receive messages.
+            - delay_seconds (DelaySeconds) - the number of seconds to delay
+                            a specific message.
     """
 
     def __init__(self, creds, endpoint, query_factory):
@@ -215,6 +220,11 @@ class Queue(object):
         self.query_factory = query_factory
 
     def change_message_visibility(self, receipt_handle, timeout):
+        """
+            @param receipt_handle: required, C{str}.
+            @param timeout: optional, C{int}.
+                            Seconds from 0 to 43200 (max 12 hours).
+        """
         params = {'ReceiptHandle': receipt_handle,
                   'VisibilityTimeout': timeout}
 
@@ -225,10 +235,10 @@ class Queue(object):
 
     def change_message_visibility_batch(self, receipt_handles, timeout):
         """
-            receipt_handle - list of receipt_handle;
-            timeout - list if timeouts (accordingly to the order of
-                      receipt_handle) or int value if it is common
-                      for all messages.
+            @param receipt_handles: required, C{list} of receipt_handle;
+            @param timeout: optional, C{list} of C{int} (accordingly to the
+                        order of receipt_handle) or C{int} value if it is
+                        common for all messages. From 0 to 43200 (max 12 hours).
         """
         if len(receipt_handles) > 10:
             raise RequestParamError('More than 10 not allowed.')
@@ -247,6 +257,9 @@ class Queue(object):
         return body
 
     def delete_message(self, receipt_handle):
+        """
+            @param receipt_handle: required, C{str}.
+        """
         params = {'ReceiptHandle': receipt_handle}
 
         body = self.query_factory.submit('DeleteMessage', **params)
@@ -255,6 +268,9 @@ class Queue(object):
         return body
 
     def delete_message_batch(self, receipt_handles):
+        """
+            @param receipt_handles: required, C{list} of receipt_handle C{str}.
+        """
         if len(receipt_handles) > 10:
             raise RequestParamError('More than 10 not allowed.')
         params = {}
@@ -277,15 +293,35 @@ class Queue(object):
 
         return body
 
-    def receive_message(self, attribute_name=None, max_number_of_messages=None,
-                        visibility_timeout=None, wait_time_seconds=None):
+    def receive_message(self, attribute=None, max_number_of_messages=None,
+                        timeout=None, wait_time_seconds=None):
+        """
+            @param attribute: optional, C{str}, default C{None}.
+                Possible values:
+                All — returns all values.
+                SenderId — returns the AWS account number (or the IP address,
+                        if anonymous access is allowed) of the sender.
+                SentTimestamp — returns the time when the message was sent
+                        (epoch time in milliseconds).
+                ApproximateReceiveCount — returns the number of times a
+                        message has been received but not deleted.
+                ApproximateFirstReceiveTimestamp — returns the time when the
+                        message was first received (epoch time in milliseconds).
+            @param max_number_of_messages: optional, C{int} from 1 to 10,
+                                           default 1.
+            @param timeout: optional, C{int} from 0 to 43200 (maximum 12 hours),
+                            default - visibility timeout for the queue.
+            @param wait_time_seconds: optional, C{int} from 1 to 20, default -
+                            'ReceiveMessageWaitTimeSeconds' of the queue.
+                            Long poll support.
+        """
         params = {}
         if attribute_name:
-            params['AttributeName'] = attribute_name
+            params['AttributeName'] = attribute
         if max_number_of_messages:
             params['MaxNumberOfMessages'] = max_number_of_messages
         if visibility_timeout:
-            params['VisibilityTimeout'] = visibility_timeout
+            params['VisibilityTimeout'] = timeout
         if wait_time_seconds:
             params['WaitTimeSeconds'] = wait_time_seconds
 
@@ -295,6 +331,11 @@ class Queue(object):
         return body
 
     def send_message(self, message, delay_seconds=None):
+        """
+            @param message: required, C{str}.
+            @param delay_seconds: optional, C{int} from 0 to 900 (15 minutes),
+                                  default - value for the queue.
+        """
         params = {'MessageBody': base64.b64encode(message)}
         if delay_seconds:
             params['DelaySeconds'] = delay_seconds
@@ -306,9 +347,10 @@ class Queue(object):
 
     def send_message_batch(self, messages, delay_seconds=None):
         """
-            messages - list,
-            delay_seconds = list of int values or int value if it's common
-                            for all messages
+            @param messages: required, C{list} of C{str}.
+            @param delay_seconds: optional, C{list} of C{int} or C{int}
+                        from 0 to 900 (15 minutes) if it's common for all messages.
+                        Default - value for the queue.
         """
         if len(messages) > 10:
             raise RequestParamError('More than 10 not allowed.')
