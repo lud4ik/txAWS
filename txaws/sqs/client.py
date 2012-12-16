@@ -8,7 +8,6 @@ from txaws.service import AWSServiceEndpoint
 from txaws.sqs.connection import SQSConnection
 from txaws.sqs.errors import RequestParamError
 from txaws.sqs.parser import (empty_check,
-                              parse_send_message,
                               parse_send_message_batch,
                               parse_change_message_visibility_batch,
                               parse_delete_message_batch,
@@ -341,7 +340,7 @@ class Queue(object):
             params['DelaySeconds'] = delay_seconds
 
         body = self.query_factory.submit('SendMessage', **params)
-        body.addCallback(parse_send_message)
+        body.addCallback(empty_check)
 
         return body
 
