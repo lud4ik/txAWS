@@ -14,7 +14,8 @@ from txaws.sqs.parser import (empty_check,
                               parse_receive_message,
                               parse_get_queue_url,
                               parse_list_queue,
-                              parse_create_queue)
+                              parse_create_queue,
+                              parse_queue_attributes)
 
 
 class Signature(object):
@@ -139,7 +140,7 @@ class SQSClient(BaseClient):
                           'VisibilityTimeout',
             ]
             if not set(attrs.keys()).issubset(attributes):
-                raise RequestParamError('Queue attributes are')
+                raise RequestParamError('Unknown queue attributes.')
             name_templ = 'Attribute.{}.Name'
             value_templ = 'Attribute.{}.Value'
             for i, item in enumerate(attrs.items(), start=1):
@@ -199,7 +200,6 @@ class Queue(object):
             - SendMessageBatch.
         TODO:
             - AddPermission;
-            - GetQueueAttributes;
             - SetQueueAttributes.
         Description of mostly used params:
             - receipt_handle (ReceiptHandle) -  special parameter to change
@@ -288,6 +288,48 @@ class Queue(object):
         """
         body = self.query_factory.submit('DeleteQueue')
         body.addCallback(empty_check)
+
+        return body
+
+    def get_queue_attributes(self, attrs):
+        """
+            @param attrs: required, C{list} of C{str}, default C{None}.
+
+            ApproximateNumberOfMessagesNotVisible — approximate
+                number of messages that are not timed-out and not deleted.
+            VisibilityTimeout — Seconds from 0 to 43200 (max 12 hours).
+            CreatedTimestamp — epoch time in seconds.
+            LastModifiedTimestamp — time when the queue was last changed
+                (epoch time in seconds).
+            MaximumMessageSize — from 1024 to 65536 bytes (1-64 KiB).
+            MessageRetentionPeriod (seconds) — 60-1209600 (1 minute - 14 days).
+            QueueArn — queue's Amazon resource name (ARN).
+            ReceiveMessageWaitTimeSeconds — integer (from 0 to 20),
+                indicates whether short poll (0) or long poll (1-20) is used.
+            DelaySeconds — 0-900.
+        """
+        valid = ['All',
+                 'ApproximateNumberOfMessages',
+                 'ApproximateNumberOfMessagesNotVisible',
+                 'ApproximateNumberOfMessagesDelayed',
+                 'VisibilityTimeout',
+                 'CreatedTimestamp',
+                 'LastModifiedTimestamp',
+                 'Policy',
+                 'MaximumMessageSize',
+                 'MessageRetentionPeriod',
+                 'QueueArn',
+                 'ReceiveMessageWaitTimeSeconds',
+                 'DelaySeconds',
+        ]
+        if not set(attrs).issubset(valid):
+            raise RequestParamError('Unknown queue attributes.')
+        params = {}
+        for i, attr in enumerate(attrs, start=1):
+            params['AttributeName.{}'.format(i)] = attr
+
+        body = self.query_factory.submit('GetQueueAttributes', **params)
+        body.addCallback(parse_queue_attributes)
 
         return body
 

@@ -75,3 +75,18 @@ def parse_create_queue(data):
     element = XML(data).find('CreateQueueResult')
     url = element.findtext('QueueUrl').strip()
     return url
+
+
+def parse_queue_attributes(data):
+    result = {}
+    str_attrs = ['Policy', 'QueueArn']
+    element = XML(data).find('GetQueueAttributesResult')
+    for i in element.getchildren():
+        attr = i.findtext('Name').strip()
+        value = i.findtext('Value').strip()
+        if attr not in str_attrs:
+            value = int(value)
+        result[attr] = value
+    return result
+
+
