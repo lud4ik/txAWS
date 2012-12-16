@@ -195,9 +195,12 @@ class Queue(object):
             - DeleteMessage;
             - DeleteMessageBatch;
             - DeleteQueue;
+            - GetQueueAttributes;
             - ReceiveMessage;
+            - RemovePermission;
             - SendMessage;
-            - SendMessageBatch.
+            - SendMessageBatch;
+            - SetQueueAttributes.
         TODO:
             - AddPermission.
         Description of mostly used params:
