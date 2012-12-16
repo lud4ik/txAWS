@@ -78,3 +78,9 @@ def parse_list_queues(data):
     for tag in element.findall('QueueUrl'):
         result.append(tag.text.strip())
     return result
+
+
+def parse_create_queue(data):
+    element = XML(data).find('CreateQueueResult')
+    url = element.findtext('QueueUrl').strip()
+    return url

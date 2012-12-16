@@ -14,7 +14,8 @@ from txaws.sqs.parser import (empty_check,
                               parse_delete_message_batch,
                               parse_receive_message,
                               parse_get_queue_url,
-                              parse_list_queues)
+                              parse_list_queue,
+                              parse_create_queue)
 
 
 class Signature(object):
@@ -76,8 +77,10 @@ class Query(SQSConnection):
 
 class SQSClient(BaseClient):
     """
-        TODO:
-            - CreateQueue.
+        API functions for working with queues in general (not a specific queue):
+            - CreateQueue;
+            - GetQueueUrl;
+            - ListQueues.
     """
 
     def __init__(self, creds=None, endpoint=None, query_factory=None):
@@ -95,7 +98,71 @@ class SQSClient(BaseClient):
         query_factory = Query(self.creds, endpoint, self.query_factory.agent)
         return Queue(self.creds, endpoint, query_factory)
 
-    def get_queue_url(self, queue, owner=None):
+    def create_queue(self, name, attrs=None):
+        """
+            Params:
+                name - name of a new queue;
+                attrs - dict of attributes and their values (all optional).
+
+            DelaySeconds - The time in seconds that the delivery of all messages
+                           in the queue will be delayed.
+            MaximumMessageSize - The limit of how many bytes a message can
+                                 contain before Amazon SQS rejects it.
+            MessageRetentionPeriod - The number of seconds Amazon SQS retains
+                                     a message.
+            Policy - The formal description of the permissions for a resource.
+            ReceiveMessageWaitTimeSeconds - Long poll support.
+            VisibilityTimeout - The length of time, in seconds, that a message
+                                received from a queue will be invisible to other
+                                receiving components when they ask to receive
+                                messages.
+            Format of attrs:
+                    {'DelaySeconds': int from 0 to 900, default - 0,
+                     'MaximumMessageSize': int from 1024 bytes (1 KiB)
+                                           up to 65536 bytes (64 KiB),
+                                           default - 65536,
+                     'MessageRetentionPeriod': int (seconds) from
+                                            60 (1 minute) to 1209600 (14 days),
+                                            default - 345600 (4 days),
+                     'Policy': valid form-url-encoded policy,
+                     'ReceiveMessageWaitTimeSeconds': value (int from 0 to 20
+                                                      (seconds), default - 0.),
+                     'VisibilityTimeout': int from 0 to 43200 (12 hours),
+                                          default - 30,
+                    }
+        """
+        params = {'QueueName': name}
+        if attrs:
+            attributes = ['DelaySeconds',
+                          'MaximumMessageSize',
+                          'MessageRetentionPeriod',
+                          'Policy',
+                          'ReceiveMessageWaitTimeSeconds',
+                          'VisibilityTimeout',
+            ]
+            if not set(attrs.keys()).issubset(attributes):
+                raise RequestParamError('Queue attributes are')
+            name_templ = 'Attribute.{}.Name'
+            value_templ = 'Attribute.{}.Value'
+            for i, item in enumerate(attrs.items(), start=1):
+                attr, value = item
+                params[name_templ.format(i)] = attr
+                params[value_templ.format(i)] = value
+
+        body = self.query_factory.submit('CreateQueue', **params)
+        body.addCallback(parse_create_queue)
+
+        return body
+
+    def get_queue_url(self, queue, owner_id=None):
+        """
+            Params:
+                queue - name of the queue (required); maximum 80 characters;
+                        alphanumeric characters, hyphens (-),
+                        and underscores (_) are allowed;
+                owner_id - id of owner's AWS account
+                           (required if queue belongs to another AWS account).
+        """
         params = {'QueueName': queue}
         if owner:
             params['QueueOwnerAWSAccountId'] = owner
@@ -106,6 +173,12 @@ class SQSClient(BaseClient):
         return body
 
     def list_queues(self, prefix=None):
+        """
+            Params:
+                - prefix (optional) - prefix for queue name.
+                  Maximum 80 characters; alphanumeric characters,
+                  hyphens (-), and underscores (_) are allowed
+        """
         params = {}
         if prefix:
             params['QueueNamePrefix'] = prefix
@@ -120,6 +193,15 @@ class Queue(object):
     """
         Requests are made with path set to "/owner_id/queue_name/?...".
         Share with SQSClient creds and agent with HTTPConnectionPool.
+        API functions for a specific queue:
+            - ChangeMessageVisibility;
+            - ChangeMessageVisibilityBatch;
+            - DeleteMessage;
+            - DeleteMessageBatch;
+            - DeleteQueue;
+            - ReceiveMessage;
+            - SendMessage;
+            - SendMessageBatch.
         TODO:
             - AddPermission;
             - GetQueueAttributes;
@@ -172,15 +254,6 @@ class Queue(object):
 
         return body
 
-    def delete_queue(self):
-        """
-            The response is successful even if the specified queue does not exist.
-        """
-        body = self.query_factory.submit('DeleteQueue')
-        body.addCallback(empty_check)
-
-        return body
-
     def delete_message_batch(self, receipt_handles):
         if len(receipt_handles) > 10:
             raise RequestParamError('More than 10 not allowed.')
@@ -192,6 +265,15 @@ class Queue(object):
 
         body = self.query_factory.submit('DeleteMessageBatch', **params)
         body.addCallback(parse_delete_message_batch)
+
+        return body
+
+    def delete_queue(self):
+        """
+            The response is successful even if the specified queue does not exist.
+        """
+        body = self.query_factory.submit('DeleteQueue')
+        body.addCallback(empty_check)
 
         return body
 

@@ -152,7 +152,7 @@ class AWSServiceRegion(object):
         return self.get_client(S3Client, creds=self.creds,
                                endpoint=self.s3_endpoint, query_factory=None)
 
-    def get_sqs_client(self, creds=None, owner_id=None, queue=None):
+    def get_sqs_client(self, creds=None):
         from txaws.sqs.client import SQSClient
 
         if creds:
