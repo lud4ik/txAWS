@@ -88,5 +88,3 @@ def parse_queue_attributes(data):
             value = int(value)
         result[attr] = value
     return result
-
-
