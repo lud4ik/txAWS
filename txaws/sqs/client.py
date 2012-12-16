@@ -200,7 +200,6 @@ class Queue(object):
         TODO:
             - AddPermission;
             - GetQueueAttributes;
-            - RemovePermission;
             - SetQueueAttributes.
         Description of mostly used params:
             - receipt_handle (ReceiptHandle) -  special parameter to change
@@ -326,6 +325,18 @@ class Queue(object):
 
         body = self.query_factory.submit('ReceiveMessage', **params)
         body.addCallback(parse_receive_message)
+
+        return body
+
+    def remove_permission(self, label):
+        """
+            @param label: required, C{str}.
+                          The identification of the permission.
+        """
+        params = {'Label': label}
+
+        body = self.query_factory.submit('RemovePermission', **params)
+        body.addCallback(empty_check)
 
         return body
 
