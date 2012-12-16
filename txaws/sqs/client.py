@@ -216,7 +216,7 @@ class Queue(object):
 
     def change_message_visibility(self, receipt_handle, timeout):
         params = {'ReceiptHandle': receipt_handle,
-                  'VisibilityTimeout': str(timeout)}
+                  'VisibilityTimeout': timeout}
 
         body = self.query_factory.submit('ChangeMessageVisibility', **params)
         body.addCallback(empty_check)
@@ -237,9 +237,9 @@ class Queue(object):
         if isinstance(timeout, int):
             timeout = [timeout for i in xrange(len(receipt_handles))]
         for i, param in enumerate(zip(receipt_handles, timeout), start=1):
-            params['{}.{}.Id'.format(prefix, i)] = str(i)
+            params['{}.{}.Id'.format(prefix, i)] = i
             params['{}.{}.ReceiptHandle'.format(prefix, i)] = param[0]
-            params['{}.{}.VisibilityTimeout'.format(prefix, i)] = str(param[1])
+            params['{}.{}.VisibilityTimeout'.format(prefix, i)] = param[1]
 
         body = self.query_factory.submit('ChangeMessageVisibilityBatch', **params)
         body.addCallback(parse_change_message_visibility_batch)
@@ -260,7 +260,7 @@ class Queue(object):
         params = {}
         prefix = 'DeleteMessageBatchRequestEntry'
         for i, receipt in enumerate(receipt_handles, start=1):
-            params['{}.{}.Id'.format(prefix, i)] = str(i)
+            params['{}.{}.Id'.format(prefix, i)] = i
             params['{}.{}.ReceiptHandle'.format(prefix, i)] = receipt
 
         body = self.query_factory.submit('DeleteMessageBatch', **params)
@@ -297,7 +297,7 @@ class Queue(object):
     def send_message(self, message, delay_seconds=None):
         params = {'MessageBody': base64.b64encode(message)}
         if delay_seconds:
-            params['DelaySeconds'] = str(delay_seconds)
+            params['DelaySeconds'] = delay_seconds
 
         body = self.query_factory.submit('SendMessage', **params)
         body.addCallback(parse_send_message)
@@ -318,10 +318,10 @@ class Queue(object):
         prefix = 'SendMessageBatchRequestEntry'
 
         for i, msg in enumerate(messages, start=1):
-            params['{}.{}.Id'.format(prefix, i)] = str(i)
+            params['{}.{}.Id'.format(prefix, i)] = i
             params['{}.{}.MessageBody'.format(prefix, i)] = base64.b64encode(msg)
             if delay_seconds:
-                params['{}.{}.DelaySeconds'.format(prefix, i)] = str(delay_seconds[i - 1])
+                params['{}.{}.DelaySeconds'.format(prefix, i)] = delay_seconds[i - 1]
 
         body = self.query_factory.submit('SendMessageBatch', **params)
         body.addCallback(parse_send_message_batch)
