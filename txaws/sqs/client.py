@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import base64
 from urllib import quote, quote_plus
 from datetime import datetime
@@ -13,7 +14,7 @@ from txaws.sqs.parser import (empty_check,
                               parse_delete_message_batch,
                               parse_receive_message,
                               parse_get_queue_url,
-                              parse_list_queue,
+                              parse_list_queues,
                               parse_create_queue,
                               parse_queue_attributes)
 
@@ -365,7 +366,7 @@ class Queue(object):
                 params['AttributeName.{}'.format(i)] = attr
         if max_number_of_messages:
             params['MaxNumberOfMessages'] = max_number_of_messages
-        if visibility_timeout:
+        if timeout:
             params['VisibilityTimeout'] = timeout
         if wait_time_seconds:
             params['WaitTimeSeconds'] = wait_time_seconds

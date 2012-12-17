@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from txaws.sqs.parser import parse_error_message
 
 
