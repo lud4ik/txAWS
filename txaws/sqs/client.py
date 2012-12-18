@@ -336,20 +336,9 @@ class Queue(object):
 
         return body
 
-    def receive_message(self, attribute=None, max_number_of_messages=None,
-                        timeout=None, wait_time_seconds=None):
+    def receive_message(self, max_number_of_messages=None, timeout=None,
+                        wait_time_seconds=None):
         """
-            @param attribute: optional, C{list} or C{str}, default C{None}.
-                Possible values:
-                All — returns all values.
-                SenderId — returns the AWS account number (or the IP address,
-                        if anonymous access is allowed) of the sender.
-                SentTimestamp — returns the time when the message was sent
-                        (epoch time in milliseconds).
-                ApproximateReceiveCount — returns the number of times a
-                        message has been received but not deleted.
-                ApproximateFirstReceiveTimestamp — returns the time when the
-                        message was first received (epoch time in milliseconds).
             @param max_number_of_messages: optional, C{int} from 1 to 10,
                                            default 1.
             @param timeout: optional, C{int} from 0 to 43200 (maximum 12 hours),
@@ -359,11 +348,6 @@ class Queue(object):
                             Long poll support.
         """
         params = {}
-        if isinstance(attribute, basestring):
-            params['AttributeName.1'] = attribute
-        elif isinstance(attribute, list):
-            for i, attr in enumerate(attribute, start=1):
-                params['AttributeName.{}'.format(i)] = attr
         if max_number_of_messages:
             params['MaxNumberOfMessages'] = max_number_of_messages
         if timeout:
