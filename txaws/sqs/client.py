@@ -190,6 +190,7 @@ class Queue(object):
         Requests are made with path set to "/owner_id/queue_name/?...".
         Share with SQSClient creds and agent with HTTPConnectionPool.
         API functions for a specific queue:
+            - AddPermission;
             - ChangeMessageVisibility;
             - ChangeMessageVisibilityBatch;
             - DeleteMessage;
@@ -201,8 +202,6 @@ class Queue(object):
             - SendMessage;
             - SendMessageBatch;
             - SetQueueAttributes.
-        TODO:
-            - AddPermission.
         Description of mostly used params:
             - receipt_handle (ReceiptHandle) -  special parameter to change
                             state of a message, received with receive_message.
@@ -218,6 +217,27 @@ class Queue(object):
         self.creds = creds
         self.endpoint = endpoint
         self.query_factory = query_factory
+
+    def add_permission(self, label, perms):
+        """
+            @param label: required, C{str}, max 80 characters;
+                          alphanumeric characters, hyphens (-), and
+                          underscores (_) are allowed.
+                          The unique identification of the permission.
+            @param perms: required, C{list} of C{tuple} (AWSAccountId, action).
+            Actions: 'SendMessage', 'ReceiveMessage', ...
+            Only owner can grant permissions.
+        """
+        params = {'Label': label}
+        for i, item in enumerate(perms, start=1):
+            account_id, action = item
+            params['AWSAccountId.{}'.format(i)] = account_id
+            params['ActionName.{}'.format(i)] = action
+
+        body = self.query_factory.submit('AddPermission', **params)
+        body.addCallback(empty_check)
+
+        return body
 
     def change_message_visibility(self, receipt_handle, timeout):
         """
