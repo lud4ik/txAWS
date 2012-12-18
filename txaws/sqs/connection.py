@@ -34,7 +34,6 @@ class BodyReceiver(protocol.Protocol):
             self.finished.callback(data)
         else:
             error = ResponseError(data, self.code)
-            log.err(error)
             self.finished.errback(error)
         self.data.close()
 
