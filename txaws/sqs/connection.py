@@ -2,19 +2,12 @@
 from cStringIO import StringIO
 
 from twisted.python import log
-from twisted.internet import reactor, ssl, defer, protocol
+from twisted.internet import reactor, defer, protocol
 from twisted.web.client import Agent, HTTPConnectionPool
 from twisted.web.http_headers import Headers
 
+from txaws.client.ssl import VerifyingContextFactory
 from txaws.sqs.errors import ApiError, ResponseError
-
-
-class SSLClientContextFactory(ssl.ClientContextFactory):
-    """
-        SSL context factory to make necessary verification.
-    """
-    def getContext(self, hostname, port):
-        return ssl.ClientContextFactory.getContext(self)
 
 
 class BodyReceiver(protocol.Protocol):
@@ -40,10 +33,10 @@ class BodyReceiver(protocol.Protocol):
 
 class SQSConnection(object):
 
-    def __init__(self, agent=None):
+    def __init__(self, host, agent=None):
         if agent is None:
             pool = HTTPConnectionPool(reactor)
-            contextFactory = SSLClientContextFactory()
+            contextFactory = VerifyingContextFactory(host)
             agent = Agent(
                 reactor,
                 contextFactory=contextFactory,

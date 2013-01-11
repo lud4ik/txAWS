@@ -53,7 +53,7 @@ class Query(SQSConnection):
     DATE_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 
     def __init__(self, creds, endpoint, agent=None):
-        super(Query, self).__init__(agent)
+        super(Query, self).__init__(endpoint.get_host(), agent)
         self.creds = creds
         self.endpoint = endpoint
 
