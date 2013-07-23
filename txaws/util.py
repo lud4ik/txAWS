@@ -3,7 +3,6 @@
 New things in this module should be of relevance to more than one of Amazon's
 services.
 """
-
 from base64 import b64encode
 from hashlib import sha1, md5, sha256
 import hmac
@@ -19,6 +18,15 @@ except ImportError:
 
 
 __all__ = ["hmac_sha1", "hmac_sha256", "iso8601time", "calculate_md5", "XML"]
+
+
+def get_utf8_value(value):
+    if not isinstance(value, str) and not isinstance(value, unicode):
+        value = str(value)
+    if isinstance(value, unicode):
+        return value.encode('utf-8')
+    else:
+        return value
 
 
 def calculate_md5(data):

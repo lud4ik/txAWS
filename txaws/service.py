@@ -16,6 +16,7 @@ REGION_EU = regions.REGION_EU
 EC2_ENDPOINT_US = regions.EC2_ENDPOINT_US
 EC2_ENDPOINT_EU = regions.EC2_ENDPOINT_EU
 S3_ENDPOINT = regions.S3_ENDPOINT
+SQS_ENDPOINT_US = regions.SQS_ENDPOINT_US
 
 
 class AWSServiceEndpoint(object):
@@ -119,6 +120,7 @@ class AWSServiceRegion(object):
         self._clients = {}
         self.ec2_endpoint = AWSServiceEndpoint(uri=ec2_uri, method=method)
         self.s3_endpoint = AWSServiceEndpoint(uri=s3_uri, method=method)
+        self.sqs_endpoint = AWSServiceEndpoint(uri=SQS_ENDPOINT_US, method=method)
 
     def get_client(self, cls, purge_cache=False, *args, **kwds):
         """
@@ -149,3 +151,16 @@ class AWSServiceRegion(object):
             self.creds = creds
         return self.get_client(S3Client, creds=self.creds,
                                endpoint=self.s3_endpoint, query_factory=None)
+
+    def get_sqs_client(self, creds=None):
+        from txaws.sqs.client import SQSClient
+
+        if creds:
+            self.creds = creds
+        return self.get_client(SQSClient,
+                               purge_cache=True,
+                               creds=self.creds,
+                               endpoint=self.sqs_endpoint,
+                               query_factory=None)
+
+
