@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
+import hmac
+import urllib
 import base64
+from hashlib import sha256
 from urllib import quote, quote_plus
 from datetime import datetime
 
 from txaws.util import hmac_sha256, get_utf8_value
-from txaws.client.base import BaseClient
+from txaws.client.base import BaseClient, BaseQuery
 from txaws.service import AWSServiceEndpoint
 from txaws.sqs.connection import SQSConnection
 from txaws.sqs.errors import RequestParamError
@@ -19,60 +22,130 @@ from txaws.sqs.parser import (empty_check,
                               parse_queue_attributes)
 
 
-class Signature(object):
+class QuerysSignatureV4(BaseQuery):
 
-    VERSION = '2'
-    method = 'HmacSHA256'
+    version = '2012-11-05'
 
-    @staticmethod
-    def sign(secret_key, endpoint, query):
-        text = (endpoint.method + "\n" +
-                endpoint.get_host().lower() + "\n" +
-                endpoint.path + "\n" +
-                query)
-        return hmac_sha256(secret_key, text)
+    def __init__(self, creds, endpoint, agent=None):
+        super(QuerysSignatureV4, self).__init__(endpoint.get_host(), agent)
+        self.creds = creds
+        self.endpoint = endpoint
+        self.region = endpoint.get_host().split('.')[1]
 
-    @classmethod
-    def get_query_string(cls, secret_key, endpoint, params):
-        keys = sorted(params.keys())
-        pairs = []
-        for key in keys:
-            val = get_utf8_value(params[key])
-            pairs.append(quote(key, safe='') + '=' + quote(val, safe='-_~'))
-        query = '&'.join(pairs)
-        sign = cls.sign(secret_key, endpoint, query)
-        query += '&{}={}'.format(quote('Signature', safe=''),
-                                 quote_plus(sign))
-        return query
+    def _get_amz(self, dt):
+        return '/'.join([
+            self.creds.access_key,
+            dt.strftime('%Y%m%d'),
+            self.region,
+            'sqs',
+            'aws4_request',
+        ])
+
+    def _canonical_headers(self, headers):
+        l = sorted(['%s:%s' % (name.lower().strip(),
+                    ' '.join(value.strip().split()))
+                    for name, value in headers])
+        return '\n'.join(l) + '\n'
+
+    def _hashed_canonical_request(self, q_str, params, canonical_headers):
+        d = [
+           self.endpoint.method.upper(),
+           urllib.quote(self.endpoint.path),
+           q_str,
+           self._canonical_headers(canonical_headers),
+           params['X-Amz-SignedHeaders'],
+           sha256('').hexdigest(), # GET has no body
+        ]
+        return sha256('\n'.join(d)).hexdigest()
+
+    def _signature(self, params, hsh, dt):
+        str_to_sign = '%s\n%s\n%s\n%s' % (
+            params['X-Amz-Algorithm'], params['X-Amz-Date'],
+            '/'.join(params['X-Amz-Credential'].split('/')[1:]), hsh
+        )
+        HMAC = lambda x, y: hmac.new(x, y.encode('utf-8'), sha256).digest()
+        d = HMAC(HMAC(HMAC(HMAC("AWS4" + self.creds.secret_key,
+                                dt.strftime('%Y%m%d')),
+                           self.region),
+                      "sqs"),
+                "aws4_request")
+        signature = hmac.new(d, str_to_sign.encode('utf-8'), sha256).hexdigest()
+        return signature
+
+    def _generate_request_url(self, action, query_params, dt, canonical_headers):
+        query_params.extend([
+            ('Action', action),
+            ('Version', self.version),
+            ('X-Amz-Algorithm', 'AWS4-HMAC-SHA256'),
+            ('X-Amz-Credential', self._get_amz(dt)),
+            ('X-Amz-Date', dt.strftime('%Y%m%dT%H%M%SZ')),
+            ('X-Amz-SignedHeaders', 'host;x-amz-date'),
+        ])
+        query_params.sort(key=lambda x: x[0])
+        params = dict(query_params)
+        query_string = urlencode_quote(query_params)
+        hsh = self._hashed_canonical_request(query_string,
+                                             params,
+                                             canonical_headers)
+        query_string += '&' + urlencode_quote([('X-Amz-Signature',
+                                               self._signature(params,
+                                                               hsh,
+                                                               dt))])
+        return '%s?%s' % (self.endpoint.get_uri(), query_string)
+
+    def submit(self, action, **params):
+        dt = datetime.utcnow()
+        canonical_headers = [('host', self.endpoint.host),
+                             ('X-Amz-Date', dt.strftime('%Y%m%dT%H%M%SZ'))]
+        url = self._generate_request_url(action,
+                                         params.items(),
+                                         dt,
+                                         canonical_headers)
+        return self.get_page(
+            url, method='GET', body_producer=self.body_producer,
+            receiver_factory=self.receiver_factory,
+            headers=dict(canonical_headers),
+        )
 
 
-class Query(SQSConnection):
+class QuerySignatureV2(BaseQuery):
 
-    SIGNATURE_CLASS = Signature
-    APIVersion = '2012-11-05'
+    version = '2012-11-05'
     DATE_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 
     def __init__(self, creds, endpoint, agent=None):
-        super(Query, self).__init__(endpoint.get_host(), agent)
+        super(QuerySignatureV2, self).__init__(endpoint.get_host(), agent)
         self.creds = creds
         self.endpoint = endpoint
 
-    def get_standard_headers(self):
-        return {
-            'SignatureVersion': self.SIGNATURE_CLASS.VERSION,
-            'SignatureMethod': self.SIGNATURE_CLASS.method,
-            'Version': self.APIVersion,
-            'AWSAccessKeyId': self.creds.access_key,
-        }
+    def _calculate_signature(self, query_params_list):
+        query_string = urlencode_quote(query_params_list)
+        string_to_sign = '%s\n%s\n%s\n%s' % (
+            self.endpoint.method, self.endpoint.host,
+            self.endpoint.path, query_string
+        )
+        return hmac_sha256(self.creds.secret_key, string_to_sign)
+
+    def _generate_request_url(self, action, query_params):
+        query_params.extend([
+            ('Action', action),
+            ('AWSAccessKeyId', self.creds.access_key),
+            ('Version', self.version),
+            ('SignatureVersion', '2'),
+            ('SignatureMethod', 'HmacSHA256'),
+            ('Timestamp', datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')),
+        ])
+        query_params.sort()
+        query_params.append(('Signature', self._calculate_signature(query_params)))
+        query_string = urlencode_quote(query_params)
+        return '%s?%s' % (self.endpoint.get_uri(), query_string)
 
     def submit(self, action, **params):
-        params['Action'] = action
-        params['Timestamp'] = datetime.utcnow().strftime(self.DATE_FORMAT)
-        params.update(self.get_standard_headers())
-        query = self.SIGNATURE_CLASS.get_query_string(self.creds.secret_key,
-                                                      self.endpoint, params)
-        url = '{}?{}'.format(self.endpoint.get_uri(), query)
-        return self.call(url)
+        url = self._generate_request_url(action, params.items())
+        return self.get_page(
+            url, method='GET', body_producer=self.body_producer,
+            receiver_factory=self.receiver_factory
+        )
 
 
 class SQSClient(BaseClient):
@@ -84,7 +157,7 @@ class SQSClient(BaseClient):
     """
 
     def __init__(self, creds=None, endpoint=None, query_factory=None):
-        query_factory = Query(creds, endpoint)
+        query_factory = QuerysSignatureV4(creds, endpoint)
         super(SQSClient, self).__init__(creds, endpoint, query_factory)
 
     def get_queue(self, owner_id, queue):
@@ -97,7 +170,8 @@ class SQSClient(BaseClient):
         """
         endpoint = AWSServiceEndpoint(uri=self.endpoint.get_uri())
         endpoint.set_path('/{}/{}/'.format(owner_id, queue))
-        query_factory = Query(self.creds, endpoint, self.query_factory.agent)
+        query_factory = QuerysSignatureV4(self.creds, endpoint,
+                                          self.query_factory.agent)
         return Queue(self.creds, endpoint, query_factory)
 
     def create_queue(self, name, attrs=None):
